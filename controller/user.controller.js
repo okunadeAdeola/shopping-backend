@@ -106,11 +106,14 @@ const userLogin = async (req, res) => {
       user.validatePassword(password, (err, same) => {
         if (err) {
           res.status(500).json({ message: "Server error", status: false });
+          res.status(400).json({ message: "Fill in appropriately", status: false });
         } else {
           if (same) {
             const token = jwt.sign({ email }, secrete, { expiresIn: "10h" });
             res.status(200).json({ message: "User signed in successfully", status: true, token, user });
           } else {
+            console.log(err);
+            
             res.status(401).json({ message: "Wrong password, please type the correct password", status: false });
           }
         }
@@ -187,6 +190,89 @@ const password = (req, res) => {
     });
 
 }
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  const otp = Math.floor(100000 + Math.random() * 900000);
+  try {
+      const user = await userModel.findOne({ email });
+      if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+      }
+
+      user.otp = otp;
+      await user.save();
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.USER,
+          pass: process.env.PASS, 
+        },
+      });
+  
+      const mailOptions = {
+        from: process.env.USER, 
+        to: email,
+        subject: 'Reset Password',
+        text: `Your OTP code is: ${otp}. It will expire in 5 minutes.`,
+      };
+  
+      await transporter.sendMail(mailOptions);
+      res.status(200).json({ message: 'OTP sent successfully', otp });
+    } catch (error) {
+      console.error('Error sending email:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+};
+// const sendResetEmail = async (req, res) => {
+//   try {
+//     const { email } = req.body;
+//     const otp = Math.floor(100000 + Math.random() * 900000);
+//     const user = await userModel.findOne({ email });
+
+//     if (!user) {
+//       return res.status(404).json({ message: 'User not found' });
+//     }
+//     user.otp = otp;
+//     await user.save();
+//     const transporter = nodemailer.createTransport({
+//       service: 'gmail',
+//       auth: {
+//         user: process.env.USER,
+//         pass: process.env.PASS, 
+//       },
+//     });
+
+//     const mailOptions = {
+//       from: process.env.USER, 
+//       to: email,
+//       subject: 'Reset Password',
+//       text: `Your OTP code is: ${otp}. It will expire in 5 minutes.`,
+//     };
+
+//     await transporter.sendMail(mailOptions);
+//     res.status(200).json({ message: 'OTP sent successfully', otp });
+//   } catch (error) {
+//     console.error('Error sending email:', error);
+//     res.status(500).json({ message: 'Internal server error' });
+//   }
+// };
+const verifyOtp = async (req, res) => {
+  const { email, otp } = req.body;
+  const user = await userModel.findOne({ email });
+
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  if (user.otp !== otp) {
+    return res.status(400).json({ message: 'Invalid OTP' });
+  }
+  user.otp = null;
+  await user.save();
+
+  res.status(200).json({ message: 'OTP verified successfully' });
+};
+
 
 
 const resetPassword = (req, res) => {
@@ -219,4 +305,4 @@ const resetPassword = (req, res) => {
     })
 }
 
-module.exports = {register, userLogin, password, resetPassword, getDashboard, newsletter}
+module.exports = {register, userLogin, password, resetPassword, getDashboard, newsletter, verifyOtp, forgotPassword}
