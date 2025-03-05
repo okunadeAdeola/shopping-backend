@@ -31,8 +31,8 @@ const transporter = nodemailer.createTransport({
   },
 })
 
-const Captain =
-  "https://res.cloudinary.com/dbp6ovv7b/image/upload/v1715783819/tvf5apwj5bwmwf2qjfhh.png";
+const Adeysquare =
+  "https://res.cloudinary.com/dl0nnmoah/image/upload/v1730298606/holi_dc2vfj.jpg";
 
 
   const newsletter = (req, res) => {
@@ -72,7 +72,7 @@ const Captain =
           subject: "Welcome to Shoppinsphere",
           html: `
             <div style="background-color: rgb(4,48,64); padding: 20px; color: rgb(179,14,100); border-radius: 5px">
-              <img src="${Captain}" alt="Shoppinsphere Logo" style="max-width: 150px; height: 130px; margin-bottom: 20px; margin-left: 300px;">
+              <img src="${Adeysquare}" alt="Shoppinsphere Logo" style="max-width: 150px; height: 130px; margin-bottom: 20px; margin-left: 300px;">
               <div style="text-align: center;">
               <p style="font-size: 18px;">Hello, ${firstname}!</p>
               <p style="font-size: 16px;">Welcome to Adey Square! We're thrilled that you've chosen to register with us.</p>
@@ -265,6 +265,7 @@ const verifyOtp = async (req, res) => {
   }
 
   if (user.otp !== otp) {
+    logger.error('Invalid OTP');
     return res.status(400).json({ message: 'Invalid OTP' });
   }
   user.otp = null;
