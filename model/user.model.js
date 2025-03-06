@@ -10,7 +10,7 @@ const userSchema =new mongoose.Schema({
     date: {type: String, default: () => new Date().toLocaleDateString()},
     time: {type: String, default: () => new Date().toLocaleTimeString()},
     otp: { type: String },
-    otpExpiry: { type: Date }
+    
 })
 
 let saltRounds = 10
