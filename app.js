@@ -26,12 +26,6 @@ app.use('/', newsLetter)
 app.use('/', user);
 app.use('/', cart);
 app.use('/', payment);
-
-// app.use('/api', (req, res) =>{
-//     res.send('hello')
-//     console.log('you are welcome');  
-// })
-
 const PORT = process.env.PORT || 3000
 app.listen(PORT, ()=>{
     console.log(`server is running on port ${PORT}`);

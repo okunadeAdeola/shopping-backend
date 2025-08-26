@@ -1,4 +1,6 @@
-let Usermodel = require('../model/user.model');
+"use strict";
+
+let User = require('../model/user.model');
 let Newsletter = require('../model/newsletter.model');
 const dotenv = require ('dotenv');
 const jwt = require("jsonwebtoken")
@@ -8,9 +10,7 @@ const bcryptjs = require('bcryptjs');
 const verifyToken = require('../middleware/verifyToken');
 
 
-
 dotenv.config();
-
 
 const pass = process.env.PASS;
 const USERMAIL = process.env.USERMAIL;
@@ -27,15 +27,33 @@ const transporter = nodemailer.createTransport({
     pass: pass
   },
   tls: {
-    rejectUnauthorized: false,
+    rejectUnauthorized: false, // this ignores the invalid certificate
   },
 })
 
 const Adeysquare =
   "https://res.cloudinary.com/dl0nnmoah/image/upload/v1730298606/holi_dc2vfj.jpg";
+const OTP_EXP_MINUTES = 5;
 
 
-  const newsletter = (req, res) => {
+/** ===== HELPERS ===== */
+// const sendMailSafe = async (options) => {
+//   try {
+//     await transporter.sendMail(options);
+//   } catch (err) {
+//     console.error("Email send failed:", err.message);
+//     // Non-fatal: we don’t block the core flow on email failure.
+//   }
+// };
+
+// const createJwt = (user) =>
+//   jwt.sign({ id: user._id.toString(), email: user.email }, JWT_SECRET, {
+//     expiresIn: "10h",
+//   });
+
+
+// Newsletter subscribe
+ const newsletter = (req, res) => {
     let form = new Newsletter(req.body)
     form.save()
     .then((response)=>{
@@ -51,15 +69,12 @@ const Adeysquare =
       }
     })
   }
-  const register = (req, res) => {
-    console.log(req.body);
-    
-    let form = new Usermodel(req.body);
-    console.log(form);
-    
-    
+
+// Register
+const register = (req, res) => {
+    let form = new User(req.body);
     const { firstname, lastname, email, password } = req.body;
-    const newUser = new Usermodel({
+    const newUser = new User({
       firstname,
       lastname,
       email,
@@ -100,11 +115,12 @@ const Adeysquare =
         }
       });
   }
+// Login
 const userLogin = async (req, res) => {
   console.log(req.body);
   const { password, email } = req.body;
   try {
-    const user = await Usermodel.findOne({ email });
+    const user = await User.findOne({ email });
 
     if (user) {
       const secrete = process.env.SECRET;
@@ -132,10 +148,12 @@ const userLogin = async (req, res) => {
   }
 }
 
+
+// Protected: Dashboard
 const getDashboard = async (req, res) => {
   try {
       const userId = req.user.id;
-      const userDetail = await Usermodel.findById(userId);
+      const userDetail = await userModel.findById(userId);
       if (!userDetail) {
           return res.status(404).json({ status: false, message: "User not found" });
       }
@@ -148,8 +166,6 @@ const getDashboard = async (req, res) => {
 };
 
 
-
-
 const password = (req, res) => {
   const { email } = req.body;
   console.log(email);
@@ -160,7 +176,7 @@ const password = (req, res) => {
   tokenStorage.set(resetToken, { email, expires: expirationDate, pin: generating() });
   console.log(email);
 
-  Usermodel.findOne({ email })
+  User.findOne({ email })
     .then((result) => {
       if (result === null) {
         console.log('user not found', email);
@@ -176,7 +192,7 @@ const password = (req, res) => {
         return transporter.sendMail(mailOptions)
           .then((emailResult) => {
             console.log(emailResult);
-            Usermodel.updateOne({ email }, { $set: { otp: resetToken } })
+            User.updateOne({ email }, { $set: { otp: resetToken } })
               .then(result => {
                 console.log(result);
                 res.status(200).json({ message: 'Email sent successful', status: true });
@@ -194,15 +210,14 @@ const password = (req, res) => {
       res.status(500).json({ message: '❌ Internal server error', status: false });
     });
 
-}
+};
+
+
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
   const otp = Math.floor(100000 + Math.random() * 900000);
-
   try {
-      const user = await Usermodel.findOne({ email });
-      console.log(user);
-      
+      const user = await userModel.findOne({ email });
       if (!user) {
           return res.status(404).json({ message: 'User not found' });
       }
@@ -233,77 +248,164 @@ const forgotPassword = async (req, res) => {
 };
 
 const verifyOtp = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    console.log('Received:', { email, otp });
+  const { email, otp } = req.body;
+  const user = await userModel.findOne({ email });
 
-    if (!email || !otp) {
-      return res.status(400).json({ message: 'Email and OTP are required' });
-    }
-
-    const user = await Usermodel.findOne({  otp: otp });
-    console.log('User found:', user);
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    console.log('Stored OTP:', user.otp, 'Received OTP:', otp);
-
-    if (user.otp !== otp) {
-      console.error('Invalid OTP for user:', email);
-      return res.status(400).json({ message: 'Invalid OTP' });
-    }
-
-    user.otp = null; 
-    await user.save();
-
-    return res.status(200).json({ message: 'OTP verified successfully' });
-
-  } catch (error) {
-    console.error('Error verifying OTP:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
   }
+
+  if (user.otp !== otp) {
+    logger.error('Invalid OTP');
+    return res.status(400).json({ message: 'Invalid OTP' });
+  }
+  user.otp = null;
+  await user.save();
+
+  res.status(200).json({ message: 'OTP verified successfully' });
 };
 
 
 
+const resetPassword = (req, res) => {
+  const { email, otp, newPassword } = req.body;
 
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ message: 'Missing required data' });
+  }
+  console.log('missing data');
+  console.log(email, otp, newPassword);
 
-const resetPassword = async (req, res) => {
-  try {
-      const { email, otp, newPassword } = req.body;
-      console.log('Received:', req.body);
-      console.log(req.body.email, 'dfgifryfr' );
-      
-      // req.body.newPassword = Usermodel.password;
-      if (!email || !otp || !newPassword) {
-          return res.status(400).json({ message: 'Missing required data' });
-      }
-
-      console.log('Received request:', { email, otp, newPassword });
-      const user = await Usermodel.findOne({ email, otp });
-      console.log(user,'dgioggue');
-      
+  User.findOne({ email, otp })
+    .then(async (user) => {
       if (!user) {
-          return res.status(404).json({ message: 'User not found or invalid OTP' });
+        return res.status(500).json({ message: 'User not found' });
       }
+      console.log('is ok');
+      const hashPassword = await bcryptjs.hash(newPassword, 10);
+      userModel.updateOne({ _id: user._id }, { password: hashPassword })
+        .then(user => {
+          res.status(200).json({ message: 'Password reset successful' });
+          console.log('Password reset successful');
+        }).catch((error) => {
+          res.status(500).json({ message: 'Internal server error' });
+          console.log('internal server error');
+        })
 
-      console.log('User found, resetting password...');
-      const hashedPassword = await bcryptjs.hash(newPassword, 10);
-      const updatedUser = await Usermodel.findOneAndUpdate(
-          { _id: user._id },
-          { password: hashedPassword, otp: null },
-          { new: true } 
-      );
-      console.log('Password reset successful:', updatedUser);
-      res.status(200).json({ success: true, message: 'Password reset successful' });
+    }).catch((error) => {
+      console.log(error);
+    })
+}
+/** ===== OTP PASSWORD RESET FLOW =====
+ * 1) POST /forgotPassword  -> generate OTP, save + expiry, email
+ * 2) POST /verifyOtp       -> verify OTP & expiry (✅ we DO NOT clear it here)
+ * 3) POST /resetPassword   -> verify OTP again, set new pwd, clear OTP
+ */
 
-  } catch (error) {
-      console.error('Error resetting password:', error);
-      res.status(500).json({ message: 'Internal server error' });
-  }
-};
+// Step 1: request OTP
+// const forgotPassword = async (req, res) => {
+//   try {
+//     const { email } = req.body;
+//     if (!email) return res.status(400).json({ message: "Email is required", status: false });
+
+//     const user = await Usermodel.findOne({ email });
+//     if (!user) return res.status(404).json({ message: "User not found", status: false });
+
+//     const otp = Math.floor(100000 + Math.random() * 900000); // 6-digit
+//     const expires = new Date(Date.now() + OTP_EXP_MINUTES * 60 * 1000);
+
+//     user.otp = otp;
+//     user.otpExpires = expires;
+//     await user.save();
+
+//     await sendMailSafe({
+//       from: MAIL_USER,
+//       to: email,
+//       subject: "Reset Password",
+//       text: `Your OTP code is: ${otp}. It will expire in ${OTP_EXP_MINUTES} minutes.`,
+//     });
+
+//     return res.status(200).json({ message: "OTP sent successfully", status: true });
+//   } catch (error) {
+//     console.error("Error sending OTP:", error);
+//     return res.status(500).json({ message: "Internal server error", status: false });
+//   }
+// };
+
+// // Step 2: verify OTP (DO NOT clear it here)
+// const verifyOtp = async (req, res) => {
+//   try {
+//     const { otp } = req.body;
+
+//     if (!otp) {
+//       return res.status(400).json({ message: "OTP is required", status: false });
+//     }
+
+//     // Find user by OTP
+//     const user = await Usermodel.findOne({ otp });
+//     if (!user || user.otp == null) {
+//       return res.status(404).json({ message: "Invalid OTP", status: false });
+//     }
+
+//     const now = new Date();
+//     if (user.otpExpires && now > user.otpExpires) {
+//       return res.status(410).json({ message: "OTP expired, request a new one", status: false });
+//     }
+
+//     if (String(user.otp) !== String(otp)) {
+//       return res.status(404).json({ message: "Invalid OTP", status: false });
+//     }
+
+//     // Mark OTP as verified (set a flag in DB)
+//     user.isOtpVerified = true;
+//     await user.save();
+
+//     return res.status(200).json({ message: "OTP verified successfully", status: true });
+//   } catch (error) {
+//     console.error("Error verifying OTP:", error);
+//     return res.status(500).json({ message: "Internal server error", status: false });
+//   }
+// };
 
 
-module.exports = {register, userLogin, password, resetPassword, getDashboard, newsletter, verifyOtp, forgotPassword}
+// // Step 3: reset password (verifies OTP again and clears it)
+// // ===== resetPassword.js =====
+// const resetPassword = async (req, res) => {
+//   try {
+//     const { email, newPassword } = req.body;
+
+//     if (!email || !newPassword) {
+//       return res.status(400).json({ message: "Missing required data", status: false });
+//     }
+
+//     const user = await Usermodel.findOne({ email });
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found", status: false });
+//     }
+
+//     // ✅ OTP must have been verified earlier
+//     if (!user.isOtpVerified) {
+//       return res.status(403).json({ message: "OTP not verified", status: false });
+//     }
+
+//     // Hash new password
+//     const hashedPassword = await bcryptjs.hash(newPassword, 10);
+//     user.password = hashedPassword;
+
+//     // Clear OTP + verification flag
+//     user.otp = null;
+//     user.otpExpires = null;
+//     user.isOtpVerified = false;
+
+//     await user.save();
+
+//     return res.status(200).json({ success: true, message: "Password reset successful", status: true });
+//   } catch (error) {
+//     console.error("Error resetting password:", error);
+//     return res.status(500).json({ message: "Internal server error", status: false });
+//   }
+// };
+
+
+
+module.exports = {register, userLogin, password, resetPassword, getDashboard, newsletter, verifyOtp, forgotPassword};
