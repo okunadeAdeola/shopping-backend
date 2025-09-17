@@ -9,145 +9,144 @@ const mongoose = require ('mongoose');
 const bcryptjs = require('bcryptjs');
 const verifyToken = require('../middleware/verifyToken');
 
-
 dotenv.config();
 
-const pass = process.env.PASS;
-const USERMAIL = process.env.USERMAIL;
-const tokenStorage = new Map();
+// const pass = process.env.PASS;
+// const USERMAIL = process.env.USERMAIL;
+// const tokenStorage = new Map();
 
-function generating() {
-  return Math.floor(1000 + Math.random() * 9000)
-}
-
+// function generating() {
+//   return Math.floor(1000 + Math.random() * 9000)
+// }
+const USERMAIL = process.env.USERMAIL;   // your Gmail
+const PASS = process.env.PASS;           // your Gmail App Password
+const SECRET = process.env.SECRET;       // your secret key
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: USERMAIL,
-    pass: pass
+    pass: PASS,
   },
   tls: {
-    rejectUnauthorized: false, // this ignores the invalid certificate
+    rejectUnauthorized: false,
   },
-})
+});
+
 
 const Adeysquare =
-  "https://res.cloudinary.com/dl0nnmoah/image/upload/v1730298606/holi_dc2vfj.jpg";
-const OTP_EXP_MINUTES = 5;
+"https://res.cloudinary.com/dl0nnmoah/image/upload/v1730298606/holi_dc2vfj.jpg";
 
+const newsletter = async (req, res) => {
+  try {
+    const form = new Newsletter(req.body);
+    const response = await form.save();
 
-/** ===== HELPERS ===== */
-// const sendMailSafe = async (options) => {
-//   try {
-//     await transporter.sendMail(options);
-//   } catch (err) {
-//     console.error("Email send failed:", err.message);
-//     // Non-fatal: we don’t block the core flow on email failure.
-//   }
-// };
+    console.log("✔ newsletter subscribed:", response.email);
+    return res.status(200).json({ status: true, message: 'Email submitted successfully' });
+  } catch (err) {
+    console.error(err);
 
-// const createJwt = (user) =>
-//   jwt.sign({ id: user._id.toString(), email: user.email }, JWT_SECRET, {
-//     expiresIn: "10h",
-//   });
-
-
-// Newsletter subscribe
- const newsletter = (req, res) => {
-    let form = new Newsletter(req.body)
-    form.save()
-    .then((response)=>{
-      console.log(response);
-      return res.status(200).json({status: true, message: 'email submitted successfully'})
-    })
-    .catch((err)=> {
-      if(err.code === 11000){
-        res.status(409).json({ status: false, message: "Duplicate user found" });
-      }
-      else{
-        res.status(400).json({ status: false, message: "Fill in appropriately" });
-      }
-    })
+    if (err.code === 11000) {
+      return res.status(409).json({ status: false, message: "Duplicate email found" });
+    }
+    return res.status(400).json({ status: false, message: "Fill in appropriately" });
   }
+};
 
 // Register
-const register = (req, res) => {
-    let form = new User(req.body);
-    const { firstname, lastname, email, password } = req.body;
-    const newUser = new User({
-      firstname,
-      lastname,
-      email,
-      password,
-    })
-    // console.log(newUser);
-    newUser.save()
-      .then((result) => {
-        console.log(result);
-        res.status(200).json({ status: true, message: "User signed up successfully", result });
-        console.log('✔ user found', email);
-        const mailOptions = {
-          from: process.env.USER,
-          to: email,
-          subject: "Welcome to Shoppinsphere",
-          html: `
-            <div style="background-color: rgb(4,48,64); padding: 20px; color: rgb(179,14,100); border-radius: 5px">
-              <img src="${Adeysquare}" alt="Shoppinsphere Logo" style="max-width: 150px; height: 130px; margin-bottom: 20px; margin-left: 300px;">
-              <div style="text-align: center;">
-              <p style="font-size: 18px;">Hello, ${firstname}!</p>
-              <p style="font-size: 16px;">Welcome to Adey Square! We're thrilled that you've chosen to register with us.</p>
-              <p style="font-size: 16px;">If you have any questions or need assistance, feel free to reach out @Okunade288@gmail.com.</p>
-              <p style="font-size: 16px;">Thank you for joining us.</p>
-              <p style="font-size: 16px;">Best regards,</p>
-              <p style="font-size: 16px;">The Shoppinsphere Team</p>
-              </div>
-            </div>
-          `,
-        };
-          return transporter.sendMail(mailOptions)
-      })
-      .catch((err) => {
-        console.error(err);
-        if (err.code === 11000) {
-          res.status(409).json({ status: false, message: "Duplicate user found" });
-        } else {
-          res.status(400).json({ status: false, message: "Fill in appropriately" });
-        }
-      });
-  }
-// Login
-const userLogin = async (req, res) => {
-  console.log(req.body);
-  const { password, email } = req.body;
+const register = async (req, res) => {
   try {
-    const user = await User.findOne({ email });
+    const { firstname, lastname, email, password } = req.body;
 
-    if (user) {
-      const secrete = process.env.SECRET;
-      user.validatePassword(password, (err, same) => {
-        if (err) {
-          res.status(500).json({ message: "Server error", status: false });
-          res.status(400).json({ message: "Fill in appropriately", status: false });
-        } else {
-          if (same) {
-            const token = jwt.sign({ email }, secrete, { expiresIn: "10h" });
-            res.status(200).json({ message: "User signed in successfully", status: true, token, user });
-          } else {
-            console.log(err);
-            
-            res.status(401).json({ message: "Wrong password, please type the correct password", status: false });
-          }
-        }
+    const newUser = new User({ firstname, lastname, email, password });
+    const result = await newUser.save();
+
+    console.log("✔ user registered:", email);
+
+    const mailOptions = {
+      from: USERMAIL,
+      to: email,
+      subject: "Welcome to Shoppinsphere",
+      html: `
+        <div style="background-color: rgb(4,48,64); padding: 20px; color: rgb(179,14,100); border-radius: 5px">
+          <img src="${Adeysquare}" alt="Shoppinsphere Logo"
+            style="max-width: 150px; height: 130px; margin: 0 auto 20px; display:block;">
+          <div style="text-align: center;">
+            <p style="font-size: 18px;">Hello, ${firstname}!</p>
+            <p style="font-size: 16px;">Welcome to Adey Square! We're thrilled that you've chosen to register with us.</p>
+            <p style="font-size: 16px;">If you have any questions, reach out at <a href="mailto:Okunade288@gmail.com">Okunade288@gmail.com</a>.</p>
+            <p style="font-size: 16px;">Thank you for joining us.</p>
+            <p style="font-size: 16px;">Best regards,</p>
+            <p style="font-size: 16px;">The Shoppinsphere Team</p>
+          </div>
+        </div>
+      `,
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      return res.status(200).json({
+        status: true,
+        message: "User signed up successfully & welcome email sent",
+        result,
       });
-    } else {
-      res.status(404).json({ message: "Wrong email, please type the correct email", status: false });
+    } catch (mailErr) {
+      console.error("Email send failed:", mailErr.message);
+      return res.status(200).json({
+        status: true,
+        message: "User signed up successfully (email failed to send)",
+        result,
+      });
     }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error", status: false });
-  }
-}
 
+    if (err.code === 11000) {
+      return res.status(409).json({ status: false, message: "Duplicate user found" });
+    }
+    return res.status(400).json({ status: false, message: "Registration failed" });
+  }
+};
+
+// Login
+const userLogin = async (req, res) => {
+  const { password, email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        message: "Wrong email, please type the correct email",
+        status: false,
+      });
+    }
+
+    const secrete = SECRET;
+    user.validatePassword(password, (err, same) => {
+      if (err) {
+        return res.status(500).json({ message: "Server error", status: false });
+      }
+
+      if (!same) {
+        return res.status(401).json({
+          message: "Wrong password, please type the correct password",
+          status: false,
+        });
+      }
+
+      const token = jwt.sign({ email }, secrete, { expiresIn: "10h" });
+      return res.status(200).json({
+        message: "User signed in successfully",
+        status: true,
+        token,
+        user,
+      });
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error", status: false });
+  }
+};
 
 // Protected: Dashboard
 const getDashboard = async (req, res) => {
