@@ -20,11 +20,5 @@ const productSchema = new mongoose.Schema ({
 })
 
 
-// Optional: Method to calculate total price of the cart
-// cartSchema.methods.getTotalPrice = function () {
-//     return this.products.reduce((total, item) => {
-//         return total + (item.quantity * item.product.price);
-//     }, 0);
-// };
 const Product = mongoose.model('Product', productSchema);
 module.exports = Product;
